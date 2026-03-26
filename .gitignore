@@ -1,0 +1,2 @@
+# Ignore the data files from all subfiles
+data/** 
