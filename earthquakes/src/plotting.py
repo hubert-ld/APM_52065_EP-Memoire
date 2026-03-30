@@ -203,3 +203,178 @@ def save_all_figures(t, compensators, fig_dir="figures"):
     plot_density_residuals(compensators,
                            os.path.join(fig_dir, "density_residuals.png"))
     print(f"Figures saved to {fig_dir}/")
+
+
+# ============================================================
+# Map — Earthquake locations (lon/lat)
+# ============================================================
+
+def plot_earthquake_location_map(
+    df,
+    out_path,
+    *,
+    lon_col="longitude",
+    lat_col="latitude",
+    mag_col="mag",
+    depth_col="depth",
+    title="Earthquake locations",
+    extent=None,
+    pad_deg=1.0,
+    size_range=(12.0, 180.0),
+    cmap="viridis_r",
+    alpha=0.85,
+    publication_style=True,
+):
+    """Plot earthquake epicentres on a lon/lat map.
+
+    Points are sized by magnitude and coloured by depth.
+
+    This function intentionally keeps dependencies minimal: if Cartopy is
+    available it will add coastlines, country borders and US state boundaries;
+    otherwise it falls back to a plain lon/lat scatter plot.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Catalogue with at least lon/lat/mag/depth columns.
+    out_path : str
+        Output path for the saved figure (e.g. "figures/map.png").
+    lon_col, lat_col, mag_col, depth_col : str
+        Column names in df.
+    title : str
+        Plot title.
+    extent : tuple[float, float, float, float] | None
+        (lon_min, lon_max, lat_min, lat_max). If None, inferred from data
+        with padding.
+    pad_deg : float
+        Degrees to pad inferred extent.
+    size_range : tuple[float, float]
+        Minimum and maximum marker areas passed to matplotlib.scatter (points^2).
+    cmap : str
+        Matplotlib colormap.
+    alpha : float
+        Marker alpha.
+    publication_style : bool
+        If True, apply set_publication_style() before plotting.
+    """
+    if publication_style:
+        set_publication_style()
+
+    # Extract arrays (works for pandas without importing it here).
+    lon = np.asarray(df[lon_col], dtype=float)
+    lat = np.asarray(df[lat_col], dtype=float)
+    mag = np.asarray(df[mag_col], dtype=float)
+    depth = np.asarray(df[depth_col], dtype=float)
+
+    mask = np.isfinite(lon) & np.isfinite(lat) & np.isfinite(mag) & np.isfinite(depth)
+    lon, lat, mag, depth = lon[mask], lat[mask], mag[mask], depth[mask]
+
+    if lon.size == 0:
+        raise ValueError("No finite lon/lat/mag/depth rows to plot.")
+
+    # Size scaling (scatter 's' is marker area in points^2).
+    mag_min, mag_max = float(np.min(mag)), float(np.max(mag))
+    s_min, s_max = map(float, size_range)
+    if np.isclose(mag_min, mag_max):
+        sizes = np.full_like(mag, 0.5 * (s_min + s_max), dtype=float)
+    else:
+        sizes = s_min + (mag - mag_min) * (s_max - s_min) / (mag_max - mag_min)
+
+    # Extent
+    if extent is None:
+        lon_min, lon_max = float(np.min(lon)), float(np.max(lon))
+        lat_min, lat_max = float(np.min(lat)), float(np.max(lat))
+        extent = (lon_min - pad_deg, lon_max + pad_deg, lat_min - pad_deg, lat_max + pad_deg)
+    lon_min, lon_max, lat_min, lat_max = map(float, extent)
+
+    # Try for a real map with Cartopy; otherwise, plain lon/lat axes.
+    use_cartopy = False
+    try:
+        import cartopy.crs as ccrs  # type: ignore
+        import cartopy.feature as cfeature  # type: ignore
+
+        use_cartopy = True
+    except Exception:
+        use_cartopy = False
+
+    if use_cartopy:
+        proj = ccrs.PlateCarree()
+        fig = plt.figure()
+        ax = plt.axes(projection=proj)
+        ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=proj)
+        ax.add_feature(cfeature.LAND, facecolor="#F2F2F2", zorder=0)
+        ax.add_feature(cfeature.OCEAN, facecolor="#FFFFFF", zorder=0)
+        ax.add_feature(cfeature.COASTLINE, linewidth=0.8, zorder=1)
+        # Country borders (USA / neighbouring countries)
+        ax.add_feature(cfeature.BORDERS, linewidth=0.7, zorder=1)
+        # US states / provinces lines (Cartopy Natural Earth admin-1)
+        try:
+            ax.add_feature(cfeature.STATES.with_scale("50m"), linewidth=0.45, edgecolor="#444444", zorder=1)
+        except Exception:
+            # Older Cartopy versions may not expose STATES; ignore gracefully.
+            pass
+        sc = ax.scatter(
+            lon,
+            lat,
+            s=sizes,
+            c=depth,
+            cmap=cmap,
+            alpha=alpha,
+            linewidths=0.3,
+            edgecolors="black",
+            transform=proj,
+            zorder=2,
+        )
+        gl = ax.gridlines(draw_labels=True, linewidth=0.4, linestyle="--", color=COLOURS["grid"])
+        gl.top_labels = False
+        gl.right_labels = False
+        ax.set_title(title, pad=10)
+    else:
+        fig, ax = plt.subplots()
+        sc = ax.scatter(
+            lon,
+            lat,
+            s=sizes,
+            c=depth,
+            cmap=cmap,
+            alpha=alpha,
+            linewidths=0.3,
+            edgecolors="black",
+        )
+        ax.set_xlim(lon_min, lon_max)
+        ax.set_ylim(lat_min, lat_max)
+        ax.set_xlabel("Longitude")
+        ax.set_ylabel("Latitude")
+        ax.set_title(title, pad=10)
+
+    cbar = fig.colorbar(sc, ax=ax, shrink=0.90, pad=0.02)
+    cbar.set_label("Depth (km)")
+
+    # Marker-size legend (magnitude)
+    mag_lo = float(np.quantile(mag, 0.25))
+    mag_md = float(np.quantile(mag, 0.50))
+    mag_hi = float(np.quantile(mag, 0.75))
+    legend_mags = [mag_lo, mag_md, mag_hi]
+    if np.isclose(mag_min, mag_max):
+        legend_sizes = [0.5 * (s_min + s_max)] * 3
+    else:
+        legend_sizes = [s_min + (m - mag_min) * (s_max - s_min) / (mag_max - mag_min) for m in legend_mags]
+
+    handles = [
+        plt.Line2D(
+            [],
+            [],
+            marker="o",
+            linestyle="",
+            markersize=np.sqrt(s),
+            markerfacecolor="#999999",
+            markeredgecolor="black",
+            alpha=alpha,
+            label=f"M={m:.2f}",
+        )
+        for m, s in zip(legend_mags, legend_sizes)
+    ]
+    ax.legend(handles=handles, title="Magnitude", loc="lower left", frameon=False)
+
+    fig.savefig(out_path)
+    plt.close(fig)

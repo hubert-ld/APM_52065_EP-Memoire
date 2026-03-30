@@ -9,6 +9,8 @@ Pipeline:
     5. Save figures
 """
 
+import os
+
 import numpy as np
 import pandas as pd
 
@@ -16,6 +18,7 @@ from src.estimation import fit_all_models
 from src.diagnostics import compute_all_compensators, run_residual_tests
 from src.metrics import print_information_criteria
 from src.plotting import save_all_figures
+from src.plotting import plot_earthquake_location_map
 
 
 # ============================================================
@@ -43,7 +46,7 @@ def load_data(path):
     M  = df["mag"].to_numpy().astype(float)
     M0 = M.min()
 
-    return t, M, M0
+    return df, t, M, M0
 
 
 # ============================================================
@@ -80,10 +83,14 @@ def print_estimates(results):
 # ============================================================
 
 def main():
-    t, M, M0 = load_data(DATA_PATH)
+    df, t, M, M0 = load_data(DATA_PATH)
     n = len(t)
     print(f"Events: {n}  |  Window: {t[0]:.1f} → {t[-1]:.1f} days")
     print(f"Magnitude range: {M.min():.1f} – {M.max():.1f}  (M0 = {M0:.1f})")
+    
+    # Plot map of the events
+    plot_earthquake_location_map(df, os.path.join(FIG_DIR, "earthquake_location_map.png"), 
+                                  title="Earthquake Locations") # Save the map figure as well
 
     # Fit
     results = fit_all_models(t, M, M0)

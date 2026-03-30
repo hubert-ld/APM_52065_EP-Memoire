@@ -43,3 +43,7 @@ Figures are saved to `figures/`.
 
 Catalogue retrieved from the [USGS Earthquake Hazards Program](https://earthquake.usgs.gov/earthquakes/search/).
 Events: USA, 01/01/2025 – 04/05/2026.
+
+<center>
+    <img src="figures/earthquake_location_map.png" alt="Earthquake Location Map" width="600">
+</center>
