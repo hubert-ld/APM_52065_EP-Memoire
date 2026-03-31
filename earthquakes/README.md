@@ -37,6 +37,8 @@ pip install -r requirements.txt
 python main.py
 ```
 
+Note: the location map uses Cartopy (installed via `requirements.txt`) to draw coastlines/borders and to render the points in a nicer map projection. If Cartopy installation is problematic on your machine, you can remove it from `requirements.txt` and the code will fall back to a plain lon/lat scatter plot.
+
 Figures are saved to `figures/`.
 
 ## Data

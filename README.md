@@ -182,7 +182,7 @@ Figures are written to `earthquakes/figures/`.
 
 **Where are the earthquakes?** (marker size = magnitude, color = depth)
 
-![Earthquake map with borders/states](earthquakes/figures/earthquake_map_states.png)
+![Earthquake map with borders/states](earthquakes/figures/earthquake_location_map.png)
 
 **Model diagnostics** (time-rescaling checks)
 

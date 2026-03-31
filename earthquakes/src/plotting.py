@@ -298,12 +298,30 @@ def plot_earthquake_location_map(
         use_cartopy = False
 
     if use_cartopy:
-        proj = ccrs.PlateCarree()
+        # Plot data are lon/lat, but the display projection can be nicer than
+        # Plate Carrée. Lambert Conformal is a good default for mid-latitude
+        # regional maps (e.g. continental US).
+        data_crs = ccrs.PlateCarree()
+        central_lon = 0.5 * (lon_min + lon_max)
+        central_lat = 0.5 * (lat_min + lat_max)
+        lat_span = max(1e-6, lat_max - lat_min)
+        sp1 = float(np.clip(lat_min + lat_span / 6.0, -80.0, 80.0))
+        sp2 = float(np.clip(lat_max - lat_span / 6.0, -80.0, 80.0))
+        if np.isclose(sp1, sp2):
+            sp1 = float(np.clip(central_lat - 5.0, -80.0, 80.0))
+            sp2 = float(np.clip(central_lat + 5.0, -80.0, 80.0))
+
+        proj = ccrs.LambertConformal(
+            central_longitude=float(central_lon),
+            central_latitude=float(central_lat),
+            standard_parallels=(sp1, sp2),
+        )
+
         fig = plt.figure()
         ax = plt.axes(projection=proj)
-        ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=proj)
+        ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=data_crs)
         ax.add_feature(cfeature.LAND, facecolor="#F2F2F2", zorder=0)
-        ax.add_feature(cfeature.OCEAN, facecolor="#FFFFFF", zorder=0)
+        ax.add_feature(cfeature.OCEAN, facecolor="#ADD8E6", zorder=0)
         ax.add_feature(cfeature.COASTLINE, linewidth=0.8, zorder=1)
         # Country borders (USA / neighbouring countries)
         ax.add_feature(cfeature.BORDERS, linewidth=0.7, zorder=1)
@@ -322,12 +340,15 @@ def plot_earthquake_location_map(
             alpha=alpha,
             linewidths=0.3,
             edgecolors="black",
-            transform=proj,
+            transform=data_crs,
             zorder=2,
         )
-        gl = ax.gridlines(draw_labels=True, linewidth=0.4, linestyle="--", color=COLOURS["grid"])
-        gl.top_labels = False
-        gl.right_labels = False
+        try:
+            gl = ax.gridlines(draw_labels=True, linewidth=0.4, linestyle="--", color=COLOURS["grid"])
+            gl.top_labels = False
+            gl.right_labels = False
+        except Exception:
+            ax.gridlines(draw_labels=False, linewidth=0.4, linestyle="--", color=COLOURS["grid"])
         ax.set_title(title, pad=10)
     else:
         fig, ax = plt.subplots()
